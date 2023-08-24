@@ -118,7 +118,9 @@ void executeCommand(char *args[]) {
 
     for (int i = 0; i < numPaths; i++) {
         char *path = joinStrings(paths[i], args[0]);
+        printf("%s\n", path);
         if (access(path, X_OK) != -1) {
+            printf("Access granted\n");
             int pid = fork();
             if (pid == 0) {
                 result = execv(path, args);
@@ -128,6 +130,7 @@ void executeCommand(char *args[]) {
             }
         }
         else{
+            perror("Error");
             error = true;
         }
     
