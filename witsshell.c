@@ -31,6 +31,10 @@ void updatePaths(char *args[]){
     }
     numPaths = numArgs - 1;
     for(int i = 0; i < numPaths; i++){
+        //Check if args[i+1] has a / at the end
+        if(args[i+1][strlen(args[i+1]) - 1] != '/'){
+            args[i+1] = strcat(args[i+1], "/");
+        }
         paths[i] = args[i+1];
     }
 }
@@ -115,12 +119,16 @@ void executeCommand(char *args[]) {
         args[numArgs-2] = NULL;
         args[numArgs-1] = NULL;
     }
-
+    //Check first if the path array is empty
+    if (numPaths == 0) {
+        write(STDERR_FILENO, error_message, strlen(error_message));
+    }
+    printf("%d\n", numPaths);
     for (int i = 0; i < numPaths; i++) {
         char *path = joinStrings(paths[i], args[0]);
         printf("%s\n", path);
         if (access(path, X_OK) != -1) {
-            printf("Access granted\n");
+            //("Access granted\n");
             int pid = fork();
             if (pid == 0) {
                 result = execv(path, args);
@@ -130,7 +138,6 @@ void executeCommand(char *args[]) {
             }
         }
         else{
-            perror("Error");
             error = true;
         }
     
@@ -285,7 +292,8 @@ int countArgs(const char *input) {
     char *token;
     while ((token = strsep(&inputCopy, " ")) != NULL) {
         if(compareStrings(token, "exit")){
-            printError();
+            write(STDERR_FILENO, error_message, strlen(error_message));
+            exit(0);
         }
         numArgs++;
     }
