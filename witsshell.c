@@ -74,6 +74,8 @@ void splitInput(const char *input, char *args[]) {
     int i = 0;
     char *inputCopy = strdup(output); // Duplicate the input since strsep modifies the input
 
+
+
     while ((token = strsep(&inputCopy, " ")) != NULL) {
         size_t len = strcspn(token, "\n"); // Remove trailing newline character if present
         if (len > 0) {
@@ -112,43 +114,34 @@ bool validRedirect(char *args[]) {
 
 }
 
-
-
 void executeCommand(char *args[]) {
-    bool error = false;
+    bool error = true;
     int result;
     if(validRedirect(args)){
         freopen(args[numArgs - 1], "w", stdout);
         args[numArgs-2] = NULL;
         args[numArgs-1] = NULL;
     }
-    //Check first if the path array is empty
-    if (numPaths == 0) {
-        write(STDERR_FILENO, error_message, strlen(error_message));
-    }
-    else{
-        for (int i = 0; i < numPaths; i++) {
-            char *path = joinStrings(paths[i], args[0]);
-            if (access(path, X_OK) != -1) {
-                //("Access granted\n");
-                int pid = fork();
-                if (pid == 0) {
-                    result = execv(path, args);
-                } else {
-                    wait(&result);
-                    freopen("/dev/tty", "w", stdout);
-                }
+
+
+    for (int i = 0; i < numPaths; i++) {
+        char *path = joinStrings(paths[i], args[0]);
+        if (access(path, X_OK) != -1) {
+            error = false;
+            int pid = fork();
+            if (pid == 0) {
+                result = execv(path, args);
+            } else {
+                wait(&result);
+                freopen("/dev/tty", "w", stdout);
             }
-            else{
-                error = true;
-            }
-    
+            error = false;
+            break;
         }
+
     }
-    
 
-
-    if(error){
+    if(error || numPaths == 0){
         write(STDERR_FILENO, error_message, strlen(error_message));
     }
 
@@ -302,60 +295,59 @@ int countArgs(const char *input) {
 }
 
 int main(int argc, char *argv[]) {
-   bool end = false;
-   char *input = NULL;
+    bool end = false;
+    char *input = NULL;
     size_t len = 0;
 
-    if (argc > 2){
+    if (argc > 2) {
         printError();
     }
 
-    if (argc == 1){
-        while (!end){
+    if (argc == 1) {
+        while (!end) {
             printf(PROMPT);
-            getline(&input, &len, stdin);
+            if (getline(&input, &len, stdin) == -1) {
+                break;
+            }
             if (compareStrings(input, "exit\n") || feof(stdin)) {
                 end = true;
-            } else {
-                char * processedString = processString5000(input);
+            } else if (strspn(input, " \t\n\r\f\v") != strlen(input)) {
+                char *processedString = processString5000(input);
                 numArgs = countArgs(processedString);
                 char *args[numArgs];
                 args[numArgs] = NULL;
                 splitInput(processedString, args);
-                //executeBuiltIn(args);
                 processParallel(args);
+                free(processedString);
             }
         }
     }
 
-    if(argc == 2){
-        FILE *stream = stdin;
-        FILE * file = fopen(argv[1], "r");
-
-        if(file == NULL){
+    if (argc == 2) {
+        FILE *file = fopen(argv[1], "r");
+        if (file == NULL) {
             printError();
         }
 
         char line[256];
-        while(fgets(line, sizeof(line), file) != NULL && !feof(file)){
-            if(compareStrings(line, "exit\n")){
+        while (fgets(line, sizeof(line), file) != NULL && !feof(file)) {
+            if (compareStrings(line, "exit\n")) {
                 end = true;
-            }
-            else{
-                char * processedString = processString5000(line);
+            } else if (strspn(line, " \t\n\r\f\v") != strlen(line)) {
+                char *processedString = processString5000(line);
                 numArgs = countArgs(processedString);
                 char *args[numArgs];
                 args[numArgs] = NULL;
                 splitInput(processedString, args);
-                //executeBuiltIn(args);
                 processParallel(args);
+                free(processedString);
             }
-
         }
         fclose(file);
         end = true;
     }
 
+    free(input);
 
     return 0;
 }
