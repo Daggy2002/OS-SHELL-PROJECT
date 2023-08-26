@@ -24,18 +24,22 @@ void printError() {
 }
 
 //function to update the paths array
-void updatePaths(char *args[]){
-    //Clear the paths array
-    for(int i = 0; i < numPaths; i++){
+void updatePaths(char *args[]) {
+    // Clear the paths array
+    for (int i = 0; i < numPaths; i++) {
         paths[i] = NULL;
     }
+
     numPaths = numArgs - 1;
-    for(int i = 0; i < numPaths; i++){
-        //Check if args[i+1] has a / at the end
-        if(args[i+1][strlen(args[i+1]) - 1] != '/'){
-            args[i+1] = strcat(args[i+1], "/");
+    for (int i = 0; i < numPaths; i++) {
+        if (args[i+1][strlen(args[i+1]) - 1] != '/') {
+            char *temp = malloc(strlen(args[i+1]) + 2);  // +2 for the '/' and '\0'
+            strcpy(temp, args[i+1]);
+            strcat(temp, "/");
+            paths[i] = temp;
+        } else {
+            paths[i] = strdup(args[i+1]);
         }
-        paths[i] = args[i+1];
     }
 }
 
@@ -111,7 +115,6 @@ bool validRedirect(char *args[]) {
 
 
 void executeCommand(char *args[]) {
-    //printf("Executing command");
     bool error = false;
     int result;
     if(validRedirect(args)){
@@ -123,25 +126,26 @@ void executeCommand(char *args[]) {
     if (numPaths == 0) {
         write(STDERR_FILENO, error_message, strlen(error_message));
     }
-    printf("%d\n", numPaths);
-    for (int i = 0; i < numPaths; i++) {
-        char *path = joinStrings(paths[i], args[0]);
-        printf("%s\n", path);
-        if (access(path, X_OK) != -1) {
-            //("Access granted\n");
-            int pid = fork();
-            if (pid == 0) {
-                result = execv(path, args);
-            } else {
-                wait(&result);
-                freopen("/dev/tty", "w", stdout);
+    else{
+        for (int i = 0; i < numPaths; i++) {
+            char *path = joinStrings(paths[i], args[0]);
+            if (access(path, X_OK) != -1) {
+                //("Access granted\n");
+                int pid = fork();
+                if (pid == 0) {
+                    result = execv(path, args);
+                } else {
+                    wait(&result);
+                    freopen("/dev/tty", "w", stdout);
+                }
             }
-        }
-        else{
-            error = true;
-        }
+            else{
+                error = true;
+            }
     
+        }
     }
+    
 
 
     if(error){
@@ -152,8 +156,6 @@ void executeCommand(char *args[]) {
 }
 
 void executeBuiltIn(char *args[]) {
-    //printf("%s",args[0]);
-
     if (compareStrings(args[0], "cd")) {
         if (numArgs == 2) {
             if(chdir(args[1]) == -1)
@@ -192,7 +194,7 @@ void processParallel(char *args[]) {
         }
     }
 
-    //printf("%s\n", hasParallel ? "true" : "false");
+
 
     if(hasParallel){
         int start = 0;
@@ -203,7 +205,6 @@ void processParallel(char *args[]) {
                 numArgs = end - start;
                 for (int j = 0; j < end - start; j++){
                     args2[j] = args[start + j];
-                    //printf("%s\n", args2[j]);
                 }
                 args2[end - start] = NULL;
                 start = end + 1;
