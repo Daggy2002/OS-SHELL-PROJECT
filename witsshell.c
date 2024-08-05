@@ -100,7 +100,9 @@ char * joinStrings(char *str1, char *str2) {
 bool validRedirect(char *args[]) {
     for (int i = 0; i < numArgs; i++) {
         //If has redirect symbol with fileName directly after it and nothing more
+        //printf("Before the compare: %s\n", args[i]);
         if (compareStrings(args[i], ">")) {
+           //printf("true\n");
             if(i + 2 == numArgs && i != 0)
                 return true;
             else{
@@ -108,6 +110,7 @@ bool validRedirect(char *args[]) {
                 exit(0);
             }
         }   
+        //("After the compare: %s\n", args[i]);
     }
     
     return false;
@@ -117,12 +120,22 @@ bool validRedirect(char *args[]) {
 void executeCommand(char *args[]) {
     bool error = true;
     int result;
-    if(validRedirect(args)){
-        freopen(args[numArgs - 1], "w", stdout);
-        args[numArgs-2] = NULL;
-        args[numArgs-1] = NULL;
-    }
 
+    int original_stdout = dup(STDOUT_FILENO); // Save the original stdout
+
+    if (validRedirect(args)) {
+        int file_descriptor = open(args[numArgs - 1], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+        if (file_descriptor == -1) {
+            perror("open");
+            exit(EXIT_FAILURE);
+        }
+        // Redirect stdout to the file
+        dup2(file_descriptor, STDOUT_FILENO);
+        close(file_descriptor);
+
+        args[numArgs - 2] = NULL;
+        args[numArgs - 1] = NULL;
+    }
 
     for (int i = 0; i < numPaths; i++) {
         char *path = joinStrings(paths[i], args[0]);
@@ -131,22 +144,27 @@ void executeCommand(char *args[]) {
             int pid = fork();
             if (pid == 0) {
                 result = execv(path, args);
+                // It's a good practice to add an exit here if execv fails.
+                exit(result);
             } else {
                 wait(&result);
-                freopen("/dev/tty", "w", stdout);
             }
             error = false;
             break;
         }
-
     }
 
-    if(error || numPaths == 0){
+    if (error || numPaths == 0) {
         write(STDERR_FILENO, error_message, strlen(error_message));
     }
 
-    return;
+    // Restore stdout to its original state
+    dup2(original_stdout, STDOUT_FILENO);
+    close(original_stdout);
 }
+
+
+
 
 void executeBuiltIn(char *args[]) {
     if (compareStrings(args[0], "cd")) {
